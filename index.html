@@ -1,0 +1,334 @@
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Liga 981 - Disponibilidad de Futbolines</title>
+    <link rel="stylesheet" href="styles.css">
+    <script type="importmap">
+        {
+            "imports": {
+                "vue": "https://unpkg.com/vue@3/dist/vue.esm-browser.js",
+                "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"
+            }
+        }
+    </script>
+    <script type="module" src="app.js" defer></script>
+</head>
+<body>
+    <div id="app">
+        <header>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center;">
+                    <div v-if="headerLogo" class="logo-container">
+                        <img :src="headerLogo" alt="Logo Liga 981">
+                    </div>
+                    <h1>Liga 981 - Disponibilidad de Futbolines</h1>
+                </div>
+                <div class="user-controls">
+                    <button @click="refreshData" class="btn secondary" title="Actualizar datos">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+                            <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+                        </svg>
+                    </button>
+                    <div class="user-role">
+                        <span class="user-role-indicator" :class="userRole"></span>
+                        <span>Modo: {{ userRole === 'admin' ? 'Administrador' : 'Jugador' }}</span>
+                    </div>
+                    <button v-if="isAdmin()" @click="toggleImageSettingsDialog" class="btn secondary">Imágenes</button>
+                    <button v-if="isAdmin()" @click="clearCache" class="btn secondary">Limpiar Caché</button>
+                    <button v-if="userRole === 'player'" @click="toggleAdminMode" class="btn secondary">Admin</button>
+                    <button v-else @click="logoutAdmin" class="btn secondary">Salir</button>
+                </div>
+            </div>
+        </header>
+        
+        <section class="selector-panel">
+            <div class="date-selector">
+                <label for="date-select">Fecha:</label>
+                <input type="date" id="date-select" v-model="selectedDate" @change="updateCalendar">
+                <button @click="setToday" class="btn secondary">Hoy</button>
+            </div>
+            
+            <div class="actions-container">
+                <button @click="shareLink" class="btn primary share-btn">
+                    <i class="icon-share"></i> Compartir
+                </button>
+                
+                <button @click="toggleHelpDialog" class="btn secondary help-btn">
+                    <i class="icon-help"></i> Ayuda
+                </button>
+                
+                <div v-if="isAdmin()" class="import-export">
+                    <label for="import-csv" class="custom-file-upload">
+                        <i class="icon-upload"></i> Importar CSV
+                    </label>
+                    <input id="import-csv" type="file" accept=".csv" @change="importCSV">
+                    
+                    <button @click="exportCSV" class="btn primary export-btn">
+                        <i class="icon-download"></i> Exportar CSV
+                    </button>
+                    
+                    <label for="import-teams" class="custom-file-upload">
+                        <i class="icon-upload"></i> Importar Equipos
+                    </label>
+                    <input id="import-teams" type="file" accept=".csv" @change="importTeams">
+                    
+                    <button @click="exportTeams" class="btn primary export-btn">
+                        <i class="icon-download"></i> Exportar Equipos
+                    </button>
+                    
+                    <button @click="exportAllData" class="btn primary export-btn">
+                        <i class="icon-download"></i> Exportar Todos los Datos
+                    </button>
+                </div>
+            </div>
+        </section>
+        
+        <main class="dashboard">
+            <section class="foosball-tables">
+                <div class="header-flex">
+                    <h2>Ocupación de Futbolines - {{ formatDateLong(selectedDate) }}</h2>
+                    <button @click="toggleAdditionalHours" class="btn secondary">
+                        {{ showAdditionalHours ? 'Ocultar más horas de juego' : 'Mostrar más horas de juego' }}
+                    </button>
+                </div>
+                
+                <div class="time-slots">
+                    <div v-for="hour in displayHours" class="time-slot">
+                        <h3>{{ hour }}:00</h3>
+                        <div class="tables-container">
+                            <div v-for="(table, index) in tables" 
+                                :class="['table', getTableStatus(hour, index)]"
+                                @click="selectTable(hour, index)">
+                                <span class="table-name">Futbolín {{ index + 1 }}</span>
+                                <img v-if="tableBackgroundImage" :src="tableBackgroundImage" class="custom-table-bg" alt="">
+                                <div v-if="getMatch(hour, index)" class="match-info">
+                                    <span class="category" :style="{ backgroundColor: getCategoryColor(getMatch(hour, index).category) }">
+                                        {{ getMatch(hour, index).category }}
+                                    </span>
+                                    <span class="teams">{{ getMatch(hour, index).teamA }} vs {{ getMatch(hour, index).teamB }}</span>
+                                </div>
+                                <span v-else class="status-text">Libre</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <section class="match-management">
+                <h2>Gestión de Enfrentamientos</h2>
+                
+                <div v-if="selectedMatch" class="match-details">
+                    <h3>Enfrentamiento Seleccionado</h3>
+                    <div class="match-info-detail">
+                        <p><strong>Categoría:</strong> {{ selectedMatch.category }}</p>
+                        <p><strong>Equipos:</strong> {{ selectedMatch.teamA }} vs {{ selectedMatch.teamB }}</p>
+                        <p><strong>Fecha:</strong> {{ formatDate(selectedMatch.date) }}</p>
+                        <p><strong>Hora:</strong> {{ selectedMatch.hour }}:00</p>
+                        <p><strong>Mesa:</strong> Futbolín {{ selectedMatch.table + 1 }}</p>
+                    </div>
+                    
+                    <div class="match-actions">
+                        <button @click="showMoveDialog = true" class="btn primary">Mover Partido</button>
+                        <button @click="cancelMatch" class="btn danger">Cancelar Partido</button>
+                    </div>
+                </div>
+                
+                <div v-else-if="selectedTable !== null" class="assign-match">
+                    <h3>Asignar Nuevo Partido</h3>
+                    <div class="form-group">
+                        <label for="category-select">Categoría:</label>
+                        <select id="category-select" v-model="newMatch.category">
+                            <option v-for="category in config.categories" :value="category">{{ category }}</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="teamA-select">Equipo A:</label>
+                        <select id="teamA-select" v-model="newMatch.teamA">
+                            <option v-for="team in getTeamsForCategory(newMatch.category)" :value="team">{{ team }}</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="teamB-select">Equipo B:</label>
+                        <select id="teamB-select" v-model="newMatch.teamB">
+                            <option v-for="team in getTeamsForCategory(newMatch.category)" :value="team">{{ team }}</option>
+                        </select>
+                    </div>
+                    
+                    <div class="match-actions">
+                        <button @click="assignMatch" class="btn primary">Asignar Partido</button>
+                        <button @click="clearSelection" class="btn secondary">Cancelar</button>
+                    </div>
+                </div>
+                
+                <div v-else class="no-selection">
+                    <p>Selecciona un futbolín para ver los detalles o asignar un partido</p>
+                </div>
+            </section>
+            
+            <div class="match-table-container">
+                <h3>Listado de Enfrentamientos</h3>
+                <table class="match-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha/Hora</th>
+                            <th>Mesa</th>
+                            <th>Categoría</th>
+                            <th>Equipos</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="match in matches.sort((a, b) => a.date.localeCompare(b.date) || a.hour - b.hour || a.table - b.table)" 
+                            :key="match.id"
+                            :class="{'current-date': match.date === selectedDate}">
+                            <td>{{ formatDate(match.date) }} {{ match.hour }}:00</td>
+                            <td>Futbolín {{ match.table + 1 }}</td>
+                            <td>
+                                <span class="category-badge" :style="{ backgroundColor: getCategoryColor(match.category) }">
+                                    {{ match.category }}
+                                </span>
+                            </td>
+                            <td>{{ match.teamA }} vs {{ match.teamB }}</td>
+                        </tr>
+                        <tr v-if="matches.length === 0">
+                            <td colspan="4" class="no-matches">No hay enfrentamientos programados</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+        
+        <!-- Modal para mover partidos -->
+        <div v-if="showMoveDialog" class="modal">
+            <div class="modal-content">
+                <h3>Mover Partido</h3>
+                
+                <div class="form-group">
+                    <label for="move-date">Nueva Fecha:</label>
+                    <input type="date" id="move-date" v-model="moveDetails.date">
+                </div>
+                
+                <div class="form-group">
+                    <label for="move-hour">Nueva Hora:</label>
+                    <select id="move-hour" v-model="moveDetails.hour">
+                        <option v-for="hour in config.hours" :value="hour">{{ hour }}:00</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="move-table">Nueva Mesa:</label>
+                    <select id="move-table" v-model="moveDetails.table">
+                        <option v-for="(table, index) in tables" :value="index">Futbolín {{ index + 1 }}</option>
+                    </select>
+                </div>
+                
+                <div class="availability-check" v-if="!isAvailable(moveDetails.date, moveDetails.hour, moveDetails.table)">
+                    <p class="error">Esta mesa no está disponible en el horario seleccionado</p>
+                </div>
+                
+                <div class="modal-actions">
+                    <button @click="moveMatch" :disabled="!isAvailable(moveDetails.date, moveDetails.hour, moveDetails.table)" class="btn primary">Mover</button>
+                    <button @click="showMoveDialog = false" class="btn secondary">Cancelar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal para login de administrador -->
+        <div v-if="showLoginDialog" class="modal">
+            <div class="modal-content">
+                <h3>Acceso Administrador</h3>
+                
+                <div class="form-group">
+                    <label for="admin-password">Contraseña:</label>
+                    <input type="password" id="admin-password" v-model="adminPassword">
+                </div>
+                
+                <div class="modal-actions">
+                    <button @click="checkAdminPassword" class="btn primary">Acceder</button>
+                    <button @click="showLoginDialog = false" class="btn secondary">Cancelar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal para ayuda -->
+        <div v-if="showHelpDialog" class="modal">
+            <div class="modal-content help-content">
+                <h3>Guía de uso - Liga 981</h3>
+                
+                <div class="help-section">
+                    <h4>Consulta de disponibilidad</h4>
+                    <p>1. Selecciona una fecha en el selector superior.</p>
+                    <p>2. Visualiza los futbolines disponibles (verde) y ocupados (rojo) en cada franja horaria.</p>
+                </div>
+                
+                <div class="help-section">
+                    <h4>Gestión de partidos</h4>
+                    <p>1. <strong>Ver detalles:</strong> Haz clic en cualquier futbolín ocupado para ver los detalles del partido.</p>
+                    <p>2. <strong>Asignar partido:</strong> Haz clic en un futbolín libre, selecciona categoría y equipos, y pulsa "Asignar Partido".</p>
+                    <p>3. <strong>Mover partido:</strong> Con un partido seleccionado, pulsa "Mover Partido" y elige nueva fecha, hora y mesa.</p>
+                    <p>4. <strong>Cancelar partido:</strong> Con un partido seleccionado, pulsa "Cancelar Partido" para liberar la mesa.</p>
+                </div>
+                
+                <div class="help-section">
+                    <h4>Modo Administrador</h4>
+                    <p>El modo administrador permite importar y exportar datos en formato XLSX.</p>
+                    <p>Para activarlo, pulsa "Admin" e introduce la contraseña de administrador.</p>
+                </div>
+                
+                <div class="modal-actions">
+                    <button @click="toggleHelpDialog" class="btn primary">Cerrar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal para configuración de imágenes -->
+        <div v-if="showImageSettingsDialog" class="modal">
+            <div class="modal-content">
+                <h3>Configuración de Imágenes</h3>
+                
+                <div class="image-settings-section">
+                    <h4>Logo del encabezado</h4>
+                    <div class="image-preview">
+                        <img v-if="headerLogo" :src="headerLogo" alt="Logo actual">
+                        <span v-else>Sin logo</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="header-logo-upload" class="custom-file-upload">
+                            <i class="icon-upload"></i> Subir logo
+                        </label>
+                        <input id="header-logo-upload" type="file" accept="image/*" @change="uploadHeaderLogo">
+                        <button @click="resetHeaderLogo" class="btn danger">Eliminar logo</button>
+                    </div>
+                </div>
+                
+                <div class="image-settings-section">
+                    <h4>Imagen de fondo de futbolines</h4>
+                    <div class="image-preview">
+                        <img v-if="tableBackgroundImage" :src="tableBackgroundImage" alt="Fondo actual">
+                        <span v-else>Sin imagen de fondo</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="table-bg-upload" class="custom-file-upload">
+                            <i class="icon-upload"></i> Subir imagen
+                        </label>
+                        <input id="table-bg-upload" type="file" accept="image/*" @change="uploadTableBackground">
+                        <button @click="resetTableBackground" class="btn danger">Eliminar imagen</button>
+                    </div>
+                </div>
+                
+                <div class="modal-actions">
+                    <button @click="toggleImageSettingsDialog" class="btn primary">Cerrar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast de notificación -->
+        <div v-if="notification.show" :class="['notification', notification.type]">
+            {{ notification.message }}
+        </div>
+    </div>
+</body>
+</html>
