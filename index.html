@@ -1,7 +1,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Liga 981 - Disponibilidad de Futbolines</title>
     <link rel="stylesheet" href="styles.css">
     <script type="importmap">
@@ -25,18 +25,11 @@
                     <h1>Liga 981 - Disponibilidad de Futbolines</h1>
                 </div>
                 <div class="user-controls">
-                    <button @click="refreshData" class="btn secondary" title="Actualizar datos">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
-                            <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
-                        </svg>
-                    </button>
                     <div class="user-role">
                         <span class="user-role-indicator" :class="userRole"></span>
                         <span>Modo: {{ userRole === 'admin' ? 'Administrador' : 'Jugador' }}</span>
                     </div>
                     <button v-if="isAdmin()" @click="toggleImageSettingsDialog" class="btn secondary">Imágenes</button>
-                    <button v-if="isAdmin()" @click="clearCache" class="btn secondary">Limpiar Caché</button>
                     <button v-if="userRole === 'player'" @click="toggleAdminMode" class="btn secondary">Admin</button>
                     <button v-else @click="logoutAdmin" class="btn secondary">Salir</button>
                 </div>
@@ -51,10 +44,6 @@
             </div>
             
             <div class="actions-container">
-                <button @click="shareLink" class="btn primary share-btn">
-                    <i class="icon-share"></i> Compartir
-                </button>
-                
                 <button @click="toggleHelpDialog" class="btn secondary help-btn">
                     <i class="icon-help"></i> Ayuda
                 </button>
@@ -76,10 +65,6 @@
                     
                     <button @click="exportTeams" class="btn primary export-btn">
                         <i class="icon-download"></i> Exportar Equipos
-                    </button>
-                    
-                    <button @click="exportAllData" class="btn primary export-btn">
-                        <i class="icon-download"></i> Exportar Todos los Datos
                     </button>
                 </div>
             </div>
@@ -168,37 +153,6 @@
                     <p>Selecciona un futbolín para ver los detalles o asignar un partido</p>
                 </div>
             </section>
-            
-            <div class="match-table-container">
-                <h3>Listado de Enfrentamientos</h3>
-                <table class="match-table">
-                    <thead>
-                        <tr>
-                            <th>Fecha/Hora</th>
-                            <th>Mesa</th>
-                            <th>Categoría</th>
-                            <th>Equipos</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="match in matches.sort((a, b) => a.date.localeCompare(b.date) || a.hour - b.hour || a.table - b.table)" 
-                            :key="match.id"
-                            :class="{'current-date': match.date === selectedDate}">
-                            <td>{{ formatDate(match.date) }} {{ match.hour }}:00</td>
-                            <td>Futbolín {{ match.table + 1 }}</td>
-                            <td>
-                                <span class="category-badge" :style="{ backgroundColor: getCategoryColor(match.category) }">
-                                    {{ match.category }}
-                                </span>
-                            </td>
-                            <td>{{ match.teamA }} vs {{ match.teamB }}</td>
-                        </tr>
-                        <tr v-if="matches.length === 0">
-                            <td colspan="4" class="no-matches">No hay enfrentamientos programados</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
         </main>
         
         <!-- Modal para mover partidos -->

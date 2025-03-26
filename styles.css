@@ -301,21 +301,6 @@ select, input[type="text"] {
     cursor: not-allowed;
 }
 
-.btn svg {
-    width: 16px;
-    height: 16px;
-    vertical-align: middle;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-.btn:active svg {
-    animation: spin 0.8s linear;
-}
-
 .modal {
     position: fixed;
     top: 0;
@@ -386,10 +371,6 @@ select, input[type="text"] {
     content: "↑";
 }
 
-.icon-share::before {
-    content: "↗";
-}
-
 .user-controls {
     display: flex;
     align-items: center;
@@ -442,12 +423,6 @@ select, input[type="text"] {
 }
 
 .export-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-}
-
-.share-btn {
     display: flex;
     align-items: center;
     gap: 0.25rem;
@@ -532,50 +507,6 @@ select, input[type="text"] {
     max-height: 80px;
 }
 
-.match-table-container {
-    margin-top: 2rem;
-    overflow-x: auto;
-}
-
-.match-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 1rem;
-}
-
-.match-table th, .match-table td {
-    padding: 0.75rem;
-    text-align: left;
-    border-bottom: 1px solid #e0e0e0;
-}
-
-.match-table th {
-    background-color: var(--light-color);
-    font-weight: 600;
-}
-
-.match-table tr:hover {
-    background-color: rgba(0,0,0,0.03);
-}
-
-.match-table .category-badge {
-    display: inline-block;
-    padding: 0.25rem 0.5rem;
-    border-radius: 12px;
-    color: white;
-    font-size: 0.8rem;
-}
-
-.match-table .current-date {
-    background-color: rgba(52, 152, 219, 0.1);
-}
-
-.match-table .no-matches {
-    text-align: center;
-    color: #888;
-    padding: 2rem;
-}
-
 @media (max-width: 1024px) {
     .dashboard {
         flex-direction: column;
@@ -584,15 +515,6 @@ select, input[type="text"] {
     .foosball-tables, .match-management {
         flex: 1;
     }
-    
-    .header-flex {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    
-    .header-flex button {
-        margin-top: 10px;
-    }
 }
 
 @media (max-width: 768px) {
@@ -600,16 +522,6 @@ select, input[type="text"] {
         flex-direction: column;
         gap: 1rem;
         padding: 1rem;
-    }
-    
-    .date-selector {
-        width: 100%;
-        justify-content: space-between;
-    }
-    
-    .date-selector input[type="date"] {
-        flex: 1;
-        margin: 0 10px;
     }
     
     .tables-container {
@@ -628,179 +540,5 @@ select, input[type="text"] {
     .import-export {
         width: 100%;
         justify-content: space-between;
-        flex-wrap: wrap;
-    }
-    
-    .import-export .btn, .import-export .custom-file-upload {
-        margin: 5px 0;
-        padding: 10px;
-        font-size: 14px;
-        min-height: 44px;
-        width: 48%;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }
-    
-    header h1 {
-        font-size: 1.5rem;
-    }
-    
-    .user-controls {
-        flex-direction: column;
-        gap: 0.5rem;
-        margin-top: 10px;
-    }
-    
-    .modal-content {
-        width: 90%;
-        max-width: 90%;
-        padding: 1rem;
-    }
-    
-    .form-group select, .form-group input {
-        height: 44px; /* Better touch targets */
-    }
-    
-    .btn {
-        padding: 12px 15px;
-        min-height: 44px;
-    }
-    
-    .match-actions {
-        flex-direction: column;
-        gap: 10px;
-    }
-    
-    .match-actions .btn {
-        width: 100%;
-    }
-    
-    .match-table th, .match-table td {
-        padding: 0.5rem;
-        font-size: 0.9rem;
-    }
-}
-
-@media (max-width: 480px) {
-    header {
-        padding: 0.8rem;
-    }
-    
-    header h1 {
-        font-size: 1.2rem;
-    }
-    
-    .logo-container {
-        max-height: 40px;
-    }
-    
-    .dashboard {
-        padding: 1rem;
-    }
-    
-    .time-slot h3 {
-        font-size: 1rem;
-    }
-    
-    .table {
-        padding: 0.8rem;
-    }
-    
-    .notification {
-        width: 90%;
-        left: 5%;
-        right: 5%;
-    }
-    
-    .table-name {
-        font-size: 0.9rem;
-    }
-    
-    .category {
-        font-size: 0.7rem;
-    }
-    
-    .teams {
-        font-size: 0.9rem;
-    }
-}
-
-@media (hover: none) {
-    .btn:active {
-        transform: scale(0.98);
-    }
-    
-    .table:active {
-        transform: scale(0.98);
-    }
-    
-    select, input[type="text"], input[type="date"], input[type="password"] {
-        font-size: 16px; /* Prevents iOS zoom on focus */
-    }
-}
-
-@media (prefers-color-scheme: dark) {
-    body {
-        background-color: #121212;
-        color: #f5f5f5;
-    }
-    
-    .foosball-tables, .match-management, .selector-panel, .table, .modal-content {
-        background-color: #222;
-        color: #f5f5f5;
-    }
-    
-    .table {
-        border-color: #444;
-        background-image: linear-gradient(to bottom, #272727, #1a1a1a);
-    }
-    
-    .table.available {
-        background-color: rgba(46, 204, 113, 0.2);
-        border-color: #2ecc71;
-    }
-    
-    .table.occupied {
-        background-color: rgba(231, 76, 60, 0.2);
-        border-color: #e74c3c;
-    }
-    
-    .no-selection, .match-details, .assign-match {
-        background-color: #333;
-    }
-    
-    input, select {
-        background-color: #333;
-        color: #f5f5f5;
-        border-color: #555;
-    }
-    
-    .btn.secondary {
-        background-color: #555;
-    }
-    
-    h2, h3, h4 {
-        color: #f5f5f5;
-    }
-    
-    .status-text {
-        color: #bbb;
-    }
-    
-    .match-table th {
-        background-color: #333;
-    }
-    
-    .match-table td {
-        border-bottom-color: #444;
-    }
-    
-    .match-table tr:hover {
-        background-color: rgba(255,255,255,0.05);
-    }
-    
-    .match-table .current-date {
-        background-color: rgba(52, 152, 219, 0.2);
     }
 }

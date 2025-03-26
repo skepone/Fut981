@@ -1,220 +1,253 @@
-import { createApp, ref, computed } from 'vue';
+import { createApp } from 'vue';
 import { config } from './config.js';
 import * as XLSX from 'xlsx';
-import { setupSharing } from './sharing.js';
-import { createMatchService } from './match-service.js';
-import { createStateManager } from './state-manager.js';
-import { createExportService } from './export-service.js';
-import { createCacheManager } from './cache-manager.js';
+import { Storage } from './storage.js';
 
 createApp({
-    setup() {
-        const matchService = createMatchService();
-        const stateManager = createStateManager(matchService);
-        const exportService = createExportService(matchService);
-        const cacheManager = createCacheManager();
-        
-        // State
-        const selectedDate = ref(new Date().toISOString().split('T')[0]);
-        const tables = ref(Array(config.tables).fill(null));
-        const selectedMatch = ref(null);
-        const selectedTable = ref(null);
-        const selectedHour = ref(null);
-        const showMoveDialog = ref(false);
-        const moveDetails = ref({
-            date: null,
-            hour: null,
-            table: null
-        });
-        const newMatch = ref({
-            category: config.categories[0],
-            teamA: '',
-            teamB: ''
-        });
-        const notification = ref({
-            show: false,
-            message: '',
-            type: 'info'
-        });
-        const userRole = ref('player'); 
-        const showLoginDialog = ref(false);
-        const adminPassword = ref('');
-        const showHelpDialog = ref(false);
-        const headerLogo = ref(config.defaultHeaderLogo);
-        const tableBackgroundImage = ref(config.defaultTableBackground);
-        const showImageSettingsDialog = ref(false);
-        const showAdditionalHours = ref(false);
-        const displayHours = ref([...config.hours]);
-        const sharing = setupSharing();
-        
-        // Initialize state from URL parameters if present
-        stateManager.initializeFromURL(selectedDate);
-
-        // Methods
-        function loadSavedImages() {
-            const savedLogo = localStorage.getItem('headerLogo');
-            if (savedLogo) {
-                headerLogo.value = savedLogo;
+    data() {
+        return {
+            config,
+            selectedDate: new Date().toISOString().split('T')[0],
+            tables: Array(config.tables).fill(null),
+            matches: [],
+            selectedMatch: null,
+            selectedTable: null,
+            selectedHour: null,
+            showMoveDialog: false,
+            moveDetails: {
+                date: null,
+                hour: null,
+                table: null
+            },
+            newMatch: {
+                category: config.categories[0],
+                teamA: '',
+                teamB: ''
+            },
+            notification: {
+                show: false,
+                message: '',
+                type: 'info'
+            },
+            userRole: 'player', 
+            showLoginDialog: false,
+            adminPassword: '',
+            showHelpDialog: false,
+            headerLogo: config.defaultHeaderLogo,
+            tableBackgroundImage: config.defaultTableBackground,
+            showImageSettingsDialog: false,
+            showAdditionalHours: false,
+            displayHours: [...config.hours]
+        };
+    },
+    mounted() {
+        this.loadSavedData();
+        this.updateCalendar();
+    },
+    methods: {
+        loadSavedData() {
+            const savedMatches = Storage.loadMatches();
+            if (savedMatches && savedMatches.length > 0) {
+                this.matches = savedMatches;
+            } else {
+                this.loadSampleData();
             }
             
-            const savedTableBackground = localStorage.getItem('tableBackground');
-            if (savedTableBackground) {
-                tableBackgroundImage.value = savedTableBackground;
-            }
-        }
-        
-        function loadSavedTeams(force = false) {
-            if (force) {
-                const savedTeams = localStorage.getItem('savedTeams');
-                if (savedTeams) {
-                    config.teams = JSON.parse(savedTeams);
-                }
-                return;
-            }
-            
-            const freshTeams = cacheManager.getFreshData('savedTeams');
-            if (freshTeams) {
-                config.teams = freshTeams;
-                return;
-            }
-            
-            const savedTeams = localStorage.getItem('savedTeams');
+            const savedTeams = Storage.loadTeams();
             if (savedTeams) {
-                config.teams = JSON.parse(savedTeams);
+                this.config.teams = savedTeams;
             }
-        }
-        
-        function saveTeams() {
-            cacheManager.saveWithTimestamp('savedTeams', config.teams);
-        }
-        
-        function setToday() {
-            selectedDate.value = new Date().toISOString().split('T')[0];
-            updateCalendar();
-        }
-        
-        function updateCalendar() {
-            clearSelection();
-            // Update URL when calendar changes
-            stateManager.updateURLWithDate(selectedDate.value);
-        }
-        
-        function getTableStatus(hour, tableIndex) {
-            const isOccupied = matchService.getMatch(selectedDate.value, hour, tableIndex) !== undefined;
             
-            const isSelected = selectedTable.value === tableIndex && 
-                              selectedHour.value === parseInt(hour);
+            this.loadSavedImages();
+            this.showAdditionalHours = Storage.loadUIPreference(Storage.KEYS.SHOW_ADDITIONAL_HOURS, false);
+            if (this.showAdditionalHours) {
+                this.displayHours = [...config.additionalHours, ...config.hours].sort((a, b) => a - b);
+            } else {
+                this.displayHours = [...config.hours];
+            }
+        },
+        
+        loadSampleData() {
+            const today = new Date().toISOString().split('T')[0];
+            const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+            
+            this.matches = [
+                {
+                    id: 1,
+                    category: 'Primera Division',
+                    teamA: 'Equipo A',
+                    teamB: 'Equipo B',
+                    date: today,
+                    hour: 21,
+                    table: 0
+                },
+                {
+                    id: 2,
+                    category: 'Segunda Division',
+                    teamA: 'Equipo C',
+                    teamB: 'Equipo D',
+                    date: today,
+                    hour: 21,
+                    table: 1
+                },
+                {
+                    id: 3,
+                    category: 'Tercera Division',
+                    teamA: 'Equipo E',
+                    teamB: 'Equipo F',
+                    date: today,
+                    hour: 22,
+                    table: 0
+                },
+                {
+                    id: 4,
+                    category: 'Cuarta Division',
+                    teamA: 'Equipo G',
+                    teamB: 'Equipo H',
+                    date: tomorrow,
+                    hour: 21,
+                    table: 0
+                }
+            ];
+        },
+        
+        setToday() {
+            this.selectedDate = new Date().toISOString().split('T')[0];
+            this.updateCalendar();
+        },
+        updateCalendar() {
+            this.clearSelection();
+        },
+        getTableStatus(hour, tableIndex) {
+            const isOccupied = this.matches.some(match => 
+                match.date === this.selectedDate && 
+                match.hour === parseInt(hour) && 
+                match.table === tableIndex
+            );
+            
+            const isSelected = this.selectedTable === tableIndex && 
+                              this.selectedHour === parseInt(hour);
             
             return {
                 'occupied': isOccupied,
                 'available': !isOccupied,
                 'selected': isSelected
             };
-        }
-        
-        function getMatch(hour, tableIndex) {
-            return matchService.getMatch(selectedDate.value, hour, tableIndex);
-        }
-        
-        function selectTable(hour, tableIndex) {
-            selectedHour.value = parseInt(hour);
-            selectedTable.value = tableIndex;
+        },
+        getMatch(hour, tableIndex) {
+            return this.matches.find(match => 
+                match.date === this.selectedDate && 
+                match.hour === parseInt(hour) && 
+                match.table === tableIndex
+            );
+        },
+        selectTable(hour, tableIndex) {
+            this.selectedHour = parseInt(hour);
+            this.selectedTable = tableIndex;
             
-            const match = getMatch(hour, tableIndex);
+            const match = this.getMatch(hour, tableIndex);
             if (match) {
-                selectedMatch.value = match;
-                moveDetails.value = {
+                this.selectedMatch = match;
+                this.moveDetails = {
                     date: match.date,
                     hour: match.hour,
                     table: match.table
                 };
             } else {
-                selectedMatch.value = null;
+                this.selectedMatch = null;
             }
-        }
-        
-        function clearSelection() {
-            selectedMatch.value = null;
-            selectedTable.value = null;
-            selectedHour.value = null;
-            newMatch.value = {
-                category: config.categories[0],
+        },
+        clearSelection() {
+            this.selectedMatch = null;
+            this.selectedTable = null;
+            this.selectedHour = null;
+            this.newMatch = {
+                category: this.config.categories[0],
                 teamA: '',
                 teamB: ''
             };
-        }
-        
-        function assignMatch() {
-            if (!newMatch.value.teamA || !newMatch.value.teamB) {
-                showNotification('Debes seleccionar ambos equipos', 'error');
+        },
+        assignMatch() {
+            if (!this.newMatch.teamA || !this.newMatch.teamB) {
+                this.showNotification('Debes seleccionar ambos equipos', 'error');
                 return;
             }
             
-            if (newMatch.value.teamA === newMatch.value.teamB) {
-                showNotification('No puedes seleccionar el mismo equipo', 'error');
+            if (this.newMatch.teamA === this.newMatch.teamB) {
+                this.showNotification('No puedes seleccionar el mismo equipo', 'error');
                 return;
             }
             
-            const matchData = {
-                category: newMatch.value.category,
-                teamA: newMatch.value.teamA,
-                teamB: newMatch.value.teamB,
-                date: selectedDate.value,
-                hour: selectedHour.value,
-                table: selectedTable.value
-            };
+            const newId = Math.max(0, ...this.matches.map(m => m.id)) + 1;
             
-            matchService.addMatch(matchData);
-            
-            showNotification('Partido asignado correctamente', 'success');
-            clearSelection();
-        }
-        
-        function cancelMatch() {
-            if (!selectedMatch.value) return;
-            
-            if (matchService.removeMatch(selectedMatch.value.id)) {
-                showNotification('Partido cancelado correctamente', 'success');
-                clearSelection();
-            }
-        }
-        
-        function moveMatch() {
-            if (!selectedMatch.value || !moveDetails.value.date || 
-                moveDetails.value.hour === null || moveDetails.value.table === null) return;
-            
-            if (!isAvailable(moveDetails.value.date, moveDetails.value.hour, moveDetails.value.table)) {
-                showNotification('La mesa seleccionada no está disponible en ese horario', 'error');
-                return;
-            }
-            
-            const updated = matchService.updateMatch(selectedMatch.value.id, {
-                date: moveDetails.value.date,
-                hour: moveDetails.value.hour,
-                table: moveDetails.value.table
+            this.matches.push({
+                id: newId,
+                category: this.newMatch.category,
+                teamA: this.newMatch.teamA,
+                teamB: this.newMatch.teamB,
+                date: this.selectedDate,
+                hour: this.selectedHour,
+                table: this.selectedTable
             });
             
-            if (updated) {
-                showNotification('Partido movido correctamente', 'success');
-                showMoveDialog.value = false;
-                clearSelection();
+            Storage.saveMatches(this.matches);
+            
+            this.showNotification('Partido asignado correctamente', 'success');
+            this.clearSelection();
+        },
+        cancelMatch() {
+            if (!this.selectedMatch) return;
+            
+            const index = this.matches.findIndex(m => m.id === this.selectedMatch.id);
+            if (index !== -1) {
+                this.matches.splice(index, 1);
                 
-                if (moveDetails.value.date === selectedDate.value) {
-                    updateCalendar();
+                Storage.saveMatches(this.matches);
+                
+                this.showNotification('Partido cancelado correctamente', 'success');
+                this.clearSelection();
+            }
+        },
+        moveMatch() {
+            if (!this.selectedMatch || !this.moveDetails.date || 
+                this.moveDetails.hour === null || this.moveDetails.table === null) return;
+            
+            if (!this.isAvailable(this.moveDetails.date, this.moveDetails.hour, this.moveDetails.table)) {
+                this.showNotification('La mesa seleccionada no está disponible en ese horario', 'error');
+                return;
+            }
+            
+            const index = this.matches.findIndex(m => m.id === this.selectedMatch.id);
+            if (index !== -1) {
+                this.matches[index] = {
+                    ...this.matches[index],
+                    date: this.moveDetails.date,
+                    hour: this.moveDetails.hour,
+                    table: this.moveDetails.table
+                };
+                
+                Storage.saveMatches(this.matches);
+                
+                this.showNotification('Partido movido correctamente', 'success');
+                this.showMoveDialog = false;
+                this.clearSelection();
+                
+                if (this.moveDetails.date === this.selectedDate) {
+                    this.updateCalendar();
                 }
             }
-        }
-        
-        function isAvailable(date, hour, table) {
-            return matchService.isTableAvailable(
-                date, 
-                hour, 
-                table, 
-                selectedMatch.value ? selectedMatch.value.id : null
+        },
+        isAvailable(date, hour, table) {
+            const hasConflict = this.matches.some(match => 
+                match.date === date && 
+                match.hour === parseInt(hour) && 
+                match.table === parseInt(table) && 
+                (!this.selectedMatch || match.id !== this.selectedMatch.id)
             );
-        }
-        
-        function importCSV(event) {
+            
+            return !hasConflict;
+        },
+        importCSV(event) {
             const file = event.target.files[0];
             if (!file) return;
             
@@ -250,16 +283,15 @@ createApp({
                         const teamA = parts[teamAIndex];
                         const teamB = parts[teamBIndex];
                         
-                        // Check if teams exist in the category
-                        if (category && config.teams[category]) {
+                        if (category && this.config.teams[category]) {
                             if (!teamsToAdd[category]) teamsToAdd[category] = [];
                             
-                            if (teamA && !config.teams[category].includes(teamA) && 
+                            if (teamA && !this.config.teams[category].includes(teamA) && 
                                 !teamsToAdd[category].includes(teamA)) {
                                 teamsToAdd[category].push(teamA);
                             }
                             
-                            if (teamB && !config.teams[category].includes(teamB) && 
+                            if (teamB && !this.config.teams[category].includes(teamB) && 
                                 !teamsToAdd[category].includes(teamB)) {
                                 teamsToAdd[category].push(teamB);
                             }
@@ -276,38 +308,35 @@ createApp({
                         });
                     }
                     
-                    // Add new teams to categories
                     for (const category in teamsToAdd) {
                         if (teamsToAdd[category].length > 0) {
-                            config.teams[category] = [
-                                ...config.teams[category],
+                            this.config.teams[category] = [
+                                ...this.config.teams[category],
                                 ...teamsToAdd[category]
                             ];
                         }
                     }
                     
-                    // Save updated teams to localStorage
-                    saveTeams();
+                    this.matches = importedMatches;
                     
-                    // Use the new importMatches function
-                    matchService.importMatches(importedMatches);
+                    Storage.saveMatches(this.matches);
+                    Storage.saveTeams(this.config.teams);
                     
-                    showNotification('Datos importados correctamente', 'success');
-                    updateCalendar();
+                    this.showNotification('Datos importados correctamente', 'success');
+                    this.updateCalendar();
                     
                 } catch (error) {
-                    showNotification('Error al importar el archivo: ' + error.message, 'error');
+                    this.showNotification('Error al importar el archivo: ' + error.message, 'error');
                 }
             };
             
             reader.readAsText(file);
-        }
-        
-        function exportCSV() {
+        },
+        exportCSV() {
             const headers = ['id', 'category', 'teamA', 'teamB', 'date', 'hour', 'table'];
             let csvContent = headers.join(',') + '\n';
             
-            matchService.matches.value.forEach(match => {
+            this.matches.forEach(match => {
                 const row = [
                     match.id,
                     match.category,
@@ -330,35 +359,31 @@ createApp({
             link.click();
             document.body.removeChild(link);
             
-            showNotification('Datos exportados correctamente', 'success');
-        }
-        
-        function showNotification(message, type = 'info') {
-            notification.value = {
+            this.showNotification('Datos exportados correctamente', 'success');
+        },
+        showNotification(message, type = 'info') {
+            this.notification = {
                 show: true,
                 message,
                 type
             };
             
             setTimeout(() => {
-                notification.value.show = false;
+                this.notification.show = false;
             }, 3000);
-        }
-        
-        function getTeamsForCategory(category) {
-            return config.teams[category] || [];
-        }
-        
-        function formatDate(dateString) {
+        },
+        getTeamsForCategory(category) {
+            return this.config.teams[category] || [];
+        },
+        formatDate(dateString) {
             const date = new Date(dateString);
             return new Intl.DateTimeFormat('es-ES', { 
                 day: '2-digit', 
                 month: '2-digit', 
                 year: 'numeric' 
             }).format(date);
-        }
-        
-        function formatDateLong(dateString) {
+        },
+        formatDateLong(dateString) {
             const date = new Date(dateString);
             return new Intl.DateTimeFormat('es-ES', { 
                 weekday: 'long', 
@@ -366,93 +391,100 @@ createApp({
                 month: 'long', 
                 year: 'numeric' 
             }).format(date);
-        }
-        
-        function toggleHelpDialog() {
-            showHelpDialog.value = !showHelpDialog.value;
-        }
-        
-        function toggleAdminMode() {
-            showLoginDialog.value = true;
-            adminPassword.value = '';
-        }
-        
-        function checkAdminPassword() {
-            if (adminPassword.value === config.adminPassword) {
-                userRole.value = 'admin';
-                showLoginDialog.value = false;
-                showNotification('Modo administrador activado', 'success');
+        },
+        toggleHelpDialog() {
+            this.showHelpDialog = !this.showHelpDialog;
+        },
+        toggleAdminMode() {
+            this.showLoginDialog = true;
+            this.adminPassword = '';
+        },
+        checkAdminPassword() {
+            if (this.adminPassword === this.config.adminPassword) {
+                this.userRole = 'admin';
+                this.showLoginDialog = false;
+                this.showNotification('Modo administrador activado', 'success');
             } else {
-                showNotification('Contraseña incorrecta', 'error');
+                this.showNotification('Contraseña incorrecta', 'error');
             }
-        }
+        },
+        logoutAdmin() {
+            this.userRole = 'player';
+            this.showNotification('Modo jugador activado', 'info');
+        },
+        isAdmin() {
+            return this.userRole === 'admin';
+        },
+        loadSavedImages() {
+            const savedLogo = localStorage.getItem(Storage.KEYS.HEADER_LOGO);
+            if (savedLogo) {
+                this.headerLogo = savedLogo;
+            }
+            
+            const savedTableBackground = localStorage.getItem(Storage.KEYS.TABLE_BACKGROUND);
+            if (savedTableBackground) {
+                this.tableBackgroundImage = savedTableBackground;
+            }
+        },
         
-        function logoutAdmin() {
-            userRole.value = 'player';
-            showNotification('Modo jugador activado', 'info');
-        }
-        
-        function isAdmin() {
-            return userRole.value === 'admin';
-        }
-        
-        function uploadHeaderLogo(event) {
+        uploadHeaderLogo(event) {
             const file = event.target.files[0];
             if (!file) return;
             
             const reader = new FileReader();
             reader.onload = (e) => {
-                headerLogo.value = e.target.result;
-                localStorage.setItem('headerLogo', headerLogo.value);
+                this.headerLogo = e.target.result;
+                localStorage.setItem(Storage.KEYS.HEADER_LOGO, this.headerLogo);
             };
             reader.readAsDataURL(file);
-        }
+        },
         
-        function uploadTableBackground(event) {
+        uploadTableBackground(event) {
             const file = event.target.files[0];
             if (!file) return;
             
             const reader = new FileReader();
             reader.onload = (e) => {
-                tableBackgroundImage.value = e.target.result;
-                localStorage.setItem('tableBackground', tableBackgroundImage.value);
+                this.tableBackgroundImage = e.target.result;
+                localStorage.setItem(Storage.KEYS.TABLE_BACKGROUND, this.tableBackgroundImage);
             };
             reader.readAsDataURL(file);
-        }
+        },
         
-        function resetHeaderLogo() {
-            headerLogo.value = null;
-            localStorage.removeItem('headerLogo');
-        }
+        resetHeaderLogo() {
+            this.headerLogo = null;
+            localStorage.removeItem(Storage.KEYS.HEADER_LOGO);
+        },
         
-        function resetTableBackground() {
-            tableBackgroundImage.value = null;
-            localStorage.removeItem('tableBackground');
-        }
+        resetTableBackground() {
+            this.tableBackgroundImage = null;
+            localStorage.removeItem(Storage.KEYS.TABLE_BACKGROUND);
+        },
         
-        function toggleImageSettingsDialog() {
-            showImageSettingsDialog.value = !showImageSettingsDialog.value;
-        }
+        toggleImageSettingsDialog() {
+            this.showImageSettingsDialog = !this.showImageSettingsDialog;
+        },
         
-        function getCategoryColor(category) {
-            return config.categoryColors[category] || '#3498db';
-        }
-        
-        function toggleAdditionalHours() {
-            showAdditionalHours.value = !showAdditionalHours.value;
-            if (showAdditionalHours.value) {
-                displayHours.value = [...config.additionalHours, ...config.hours].sort((a, b) => a - b);
+        getCategoryColor(category) {
+            return this.config.categoryColors[category] || '#3498db';
+        },
+        toggleAdditionalHours() {
+            this.showAdditionalHours = !this.showAdditionalHours;
+            
+            Storage.saveUIPreference(Storage.KEYS.SHOW_ADDITIONAL_HOURS, this.showAdditionalHours);
+            
+            if (this.showAdditionalHours) {
+                this.displayHours = [...config.additionalHours, ...config.hours].sort((a, b) => a - b);
             } else {
-                displayHours.value = [...config.hours];
+                this.displayHours = [...config.hours];
             }
-        }
-        
-        function exportTeams() {
+        },
+        exportTeams() {
             const headers = ['category', 'team'];
             let csvContent = headers.join(',') + '\n';
             
-            for (const category in config.teams) {
-                config.teams[category].forEach(team => {
+            for (const category in this.config.teams) {
+                this.config.teams[category].forEach(team => {
                     const row = [category, team];
                     csvContent += row.join(',') + '\n';
                 });
@@ -468,10 +500,10 @@ createApp({
             link.click();
             document.body.removeChild(link);
             
-            showNotification('Equipos exportados correctamente', 'success');
-        }
+            this.showNotification('Equipos exportados correctamente', 'success');
+        },
         
-        function importTeams(event) {
+        importTeams(event) {
             const file = event.target.files[0];
             if (!file) return;
             
@@ -489,7 +521,6 @@ createApp({
                         throw new Error('Formato de CSV incorrecto');
                     }
                     
-                    // Create a temporary teams object
                     const newTeams = {};
                     
                     for (let i = 1; i < lines.length; i++) {
@@ -508,133 +539,20 @@ createApp({
                         newTeams[category].push(team);
                     }
                     
-                    // Update config teams with new data
                     for (const category in newTeams) {
-                        config.teams[category] = newTeams[category];
+                        this.config.teams[category] = newTeams[category];
                     }
                     
-                    // Save teams to localStorage for persistence
-                    saveTeams();
+                    Storage.saveTeams(this.config.teams);
                     
-                    showNotification('Equipos importados correctamente', 'success');
+                    this.showNotification('Equipos importados correctamente', 'success');
                     
                 } catch (error) {
-                    showNotification('Error al importar el archivo: ' + error.message, 'error');
+                    this.showNotification('Error al importar el archivo: ' + error.message, 'error');
                 }
             };
             
             reader.readAsText(file);
-        }
-        
-        function shareLink() {
-            // Update URL before sharing
-            stateManager.updateURLWithDate(selectedDate.value);
-            sharing.copyCurrentURL();
-        }
-        
-        function exportAllData() {
-            const message = exportService.exportAllData();
-            showNotification(message, 'success');
-        }
-        
-        function refreshData() {
-            matchService.forceReloadMatches();
-            loadSavedTeams(true);
-            loadSavedImages();
-            showNotification('Datos actualizados correctamente', 'success');
-        }
-        
-        function clearCache() {
-            cacheManager.clearAllCache();
-            location.reload();
-        }
-        
-        // Initial setup
-        loadSavedImages();
-        loadSavedTeams();
-        matchService.loadSavedMatches();
-        
-        // Listen for share events
-        document.addEventListener('share-success', (e) => {
-            showNotification(e.detail.message, 'success');
-        });
-        
-        document.addEventListener('share-error', (e) => {
-            showNotification(e.detail.message, 'error');
-        });
-        
-        // Check for stale cache on app load
-        window.addEventListener('online', () => {
-            refreshData();
-        });
-        
-        // Add visibilitychange event to refresh data when tab becomes visible
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') {
-                refreshData();
-            }
-        });
-        
-        // Return all needed methods and values to the template
-        return {
-            config,
-            selectedDate,
-            tables,
-            matches: matchService.matches,
-            selectedMatch,
-            selectedTable,
-            selectedHour,
-            showMoveDialog,
-            moveDetails,
-            newMatch,
-            notification,
-            userRole,
-            showLoginDialog,
-            adminPassword,
-            showHelpDialog,
-            headerLogo,
-            tableBackgroundImage,
-            showImageSettingsDialog,
-            showAdditionalHours,
-            displayHours,
-            sharing,
-            
-            // Methods
-            setToday,
-            updateCalendar,
-            getTableStatus,
-            getMatch,
-            selectTable,
-            clearSelection,
-            assignMatch,
-            cancelMatch,
-            moveMatch,
-            isAvailable,
-            importCSV,
-            exportCSV,
-            showNotification,
-            getTeamsForCategory,
-            formatDate,
-            formatDateLong,
-            toggleHelpDialog,
-            toggleAdminMode,
-            checkAdminPassword,
-            logoutAdmin,
-            isAdmin,
-            uploadHeaderLogo,
-            uploadTableBackground,
-            resetHeaderLogo,
-            resetTableBackground,
-            toggleImageSettingsDialog,
-            getCategoryColor,
-            toggleAdditionalHours,
-            exportTeams,
-            importTeams,
-            saveTeams,
-            shareLink,
-            exportAllData,
-            refreshData,
-            clearCache
-        };
+        },
     }
 }).mount('#app');
